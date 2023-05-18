@@ -1,0 +1,383 @@
+---
+title: "Mi parte proyecto"
+format: html
+editor: visual
+---
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Running Code
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+```{r}
+1 + 1
+```
+
+You can add options to executable code like this
+
+```{r}
+#| echo: false
+2 * 2
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
+
+**PROYECTO VISUALIZACIÓN DE DATOS**
+
+"El estado de la sanidad y la satisfacción de la ciudadanía"
+
+Existen varios factores o elementos que influyen en la decisión de una persona al emitir su voto en una elección política. Estos elementos pueden variar según el momento político, el contexto social y cultural, así como las preferencias individuales de los votantes. En el caso español, la sanidad es un tema que ha venido captando el interés de la opinión pública. Es por esto que hemos decidido plantear algunas preguntas de investigación sobre la sanidad.
+
+```{r}
+library(haven)
+library(readxl)
+library (tidyverse)
+library(dplyr)
+library(forcats)
+
+```
+
+**DATOS**
+
+Las fuentes primarias de datos que se utilizan son los Barómetros Sanitarios del CIS. En ellos tenemos información básica sobre la satisfacción con la sanidad, así como de su uso de la pública y de la privada. Se utilizan varios barómetros de diferentes años para así poder tener una serie temporal larga. Concretamente se utilizan los barómetros del total de oleadas de 2018, 2019 y 2022 y el de la primera oleada del 2023. Le elección de estas bases de datos tiene que ver con la necesidad de medir la evolución temporal, así como de llegar a barómetros realizados bajo gobiernos de distintos partidos políticos. Más allá del CIS se utilizarán las bases de datos de "epdata" para los datos de las listas de espera en la sanidad y de "datosmacro" para el gasto público en sanidad. Con estas dos variables mediremos el estado de la sanidad.
+
+Listas de espera -\> https://www.epdata.es/
+
+Gasto público sanitario -\> https://datosmacro.expansion.com/estado/gasto/salud/españa
+
+A partir de estas fuentes de datos, se elaborará una propia nombrada "Proyecto", filtrando los datos de interés para la elaboración de los gráficos y del análisis.
+
+```{r}
+Listasespera <- read_csv2("C:/Users/Usuario/Documents/Visualización de datos/Visualización/personas_en_lista_de_espera_para_operarse_en_el_sns_en_comunidad_de_madrid.csv")
+
+Gastosanitario <- read_xlsx("C:/Users/Usuario/Documents/Visualización de datos/Visualización/Gasto Sanitario.xlsx")
+
+X3397 <- read_sav("C:/Users/Usuario/Documents/Visualización de datos/Visualización/3397.sav")
+
+X8822 <- read_sav("C:/Users/Usuario/Documents/Visualización de datos/Visualización/8822.sav")
+
+X8819 <- read_sav("C:/Users/Usuario/Documents/Visualización de datos/Visualización/8819.sav")
+
+X8818 <- read_sav("C:/Users/Usuario/Documents/Visualización de datos/Visualización/8818.sav")
+
+
+```
+
+```{r}
+library(tidyverse)
+
+Sanidad2023 <- select(X3397, ESTUDIO, P2, ESCIDEOL, RECUVOTOG)
+
+Sanidad2022 <- select(X8822, ESTUDIO, P2, ESCIDEOL, RECUVOTOG)
+
+Sanidad2019 <- select(X8819, ESTUDIO, P2, P21, P22AR)
+
+Sanidad2018 <- select(X8818, ESTUDIO, P2, P24, P25AR)
+
+
+```
+
+```{r}
+Sanidad2019 <- rename(Sanidad2019, RECUVOTOG = P22AR)
+Sanidad2018 <- rename(Sanidad2018, RECUVOTOG = P25AR)
+Sanidad2019 <- rename(Sanidad2019, ESCIDEOL = P21)
+Sanidad2018 <- rename(Sanidad2018, ESCIDEOL = P24)
+
+```
+
+```{r}
+dfs <- list(Sanidad2023, Sanidad2022, Sanidad2019, Sanidad2018)
+
+
+# Unir los data frames utilizando reduce() y full_join()
+
+SanidadTotal <- reduce(dfs, full_join, by = "ESTUDIO")
+```
+
+```{r}
+SanidadTotal <- SanidadTotal %>%
+  mutate(across(c(ESCIDEOL.x, ESCIDEOL.x.x, ESCIDEOL.y, ESCIDEOL.y.y),
+                ~ case_when(
+                  . <= 4 ~ "Izquierda",
+                  . == 5 ~ "Centro",
+                  . >= 6 ~ "Derecha",
+                  TRUE ~ NA_character_
+                )))
+```
+
+```{r}
+library(forcats)
+
+SanidadTotal <- SanidadTotal %>%
+  mutate(RECUVOTOG.x = as_factor(RECUVOTOG.x),
+         RECUVOTOG.x = recode(RECUVOTOG.x, "1" = "PSOE", "2" = "PP", "3" = "VOX", "4" = "UP", "5" = "CS"))
+
+
+SanidadTotal <- SanidadTotal %>%
+  mutate(across(c(RECUVOTOG.x.x,RECUVOTOG.y),
+                ~ fct_recode(as_factor(.), 
+                             "PP" = "1",
+                             "PSOE" = "2",
+                             "CS" = "4",
+                             "VOX" = "18",
+                             "UP" = "21")))
+
+SanidadTotal <- SanidadTotal %>%
+  mutate(RECUVOTOG.y.y = as_factor(RECUVOTOG.y.y),
+         RECUVOTOG.y.y = recode(RECUVOTOG.y.y, "1" = "PP", "2" = "PSOE", "3" = "UP", "4" = "CS"))
+
+
+```
+
+```{r}
+SanidadTotal <- SanidadTotal %>%
+  mutate(across(c(P2.x, P2.y),
+                ~ case_when(
+                  . <= 4 ~ "Mal funcionamiento del sistema sanitario",
+                  . == 5 ~ "Ni mal ni buen funcionamiento del sistema sanitario",
+                  . >= 6 ~ "Buen funcionamiento del sistema sanitario",
+                  TRUE ~ NA_character_
+                )))
+
+SanidadTotal <- SanidadTotal %>%
+  mutate(across(c(P2.x.x, P2.y.y),
+                ~ case_when(
+                  . <= 2 ~ "Buen funcionamiento del sistema sanitario",
+               . >= 3 ~ "Mal funcionamiento del sistema sanitario",
+                  TRUE ~ NA_character_
+                )))
+```
+
+¿Influye la ideología en la satisfacción ciudadana hacía la sanidad?
+
+Para responder a esta pregunta se han llevado a cabo tres gráficos. En el primero de ellos se analiza la pregunta midiendo exclusivamente la situación actual en el 2023 para tener una mayor profundidad en el análisis. En un segundo gráfico se muestra la valoración positiva hacía el funcionamiento de la sanidad por ideología a lo largo del tiempo desde el 2018 hasta la actualidad, diferenciando entre izquierda y derecha. Por último, en el tercer gráfico, se mide la valoración positiva hacía el funcionamiento de la sanidad por partidos políticos a lo largo del tiempo. Ya no solo se mide la escala ideológica, sino el recuerdo de voto de la ciudadanía.
+
+A través de los diferentes gráficos se podrá observar la influencia que tiene la ideología y la identificación partidista con la valoración del funcionamiento del sistema sanitario.
+
+```{r}
+SanidadTotal %>%
+  drop_na(P2.x) %>%
+  group_by(ESCIDEOL.x, P2.x) %>%
+  summarize(count = n()) %>%
+  group_by(ESCIDEOL.x) %>%
+  mutate(percent = count/sum(count)) %>%
+  ggplot(aes(x = ESCIDEOL.x, y = percent, fill = factor(P2.x))) +
+  geom_col(position = "dodge") +
+  geom_text(aes(label = scales::percent(percent)), 
+            position = position_dodge(width = 0.9), 
+            vjust = -0.5,
+            size = 3) +
+  labs(fill = "", x = "", y = "",
+       title = "Valoración del funcionamiento del sistema sanitario por ideología en 2023") +
+  theme(axis.text = element_text(size = 8),
+        axis.title = element_text(size = 10),
+        plot.title = element_text(size = 14, face = "bold")) +
+  scale_fill_manual(values = c("#FFB900", "#FF0000","#E65100"))+
+  theme_bw()
+
+```
+
+En el año 2023, el 74,23% de las personas autoubicadas en la izquierda política valora positivamente el funcionamiento del sistema sanitario, mientras que solo lo valora así el 64,95% de las personas autoubicadas en la derecha y el 61,08% de las autoubicadas en el centro. Por el contrario, el 22,9% de las personas de centro y el 20,63% de derechas valoran negativamente el funcionamiento del sistema sanitario. Solamente el 15,91% de las personas de izquierdas lo valoran de tal manera.
+
+```{r}
+Proyecto <- data.frame(
+  año = c(2018, 2019, 2022, 2023),
+  buenasanidad = c("70", "73", "69", "67"),
+  nibuenanimala = c("0", "0", "13", "13"),
+  malasanidad = c("30","27","18","20"),
+  izquierda= c("68","73","71","74"),
+  derecha= c("71","73","70","65"))
+  
+
+```
+
+```{r}
+Proyecto_long <- Proyecto %>%
+  tidyr::pivot_longer(cols = c(buenasanidad, nibuenanimala, malasanidad), 
+                       names_to = "variable", 
+                       values_to = "valor")
+
+Proyecto_long$año <- as.factor(Proyecto_long$año)
+Proyecto_long$variable <- as.factor(Proyecto_long$variable)
+
+ggplot(Proyecto_long, aes(x = año, y = valor, color = variable, group = variable)) +
+  geom_line(size = 2) +
+  geom_point(size = 3, position = position_dodge(width = 0.2)) +  # Agregar puntos con posición dodge
+  scale_color_manual(values = c("#FFFF00","#FF0000", "#FF6600"),
+                     labels = c("Buena", "Mala", "Ni buena ni mala")) +
+  labs(color = "Valoración", x = NULL, y = NULL,
+       title = "Valoración del funcionamiento del sistema sanitario",
+       subtitle = "Los ciudadanos cada vez valoran peor el funcionamiento del sistema sanitario") +
+  theme_bw() +
+  theme(plot.subtitle = element_text(size = 8))
+```
+
+El 70% de los ciudadanos como media valora positivamente el funcionamiento del sistema sanitario. En el 2018 la buena valoración fue del 70%, subió al 73% en el año 2019 y cayó progresivamente hasta el 67% en el 2023. En cuanto a la mala valoración, sucedió en el sentido contrario. El 13% de las personas no tiene una opinión clara al respecto y considera el funcionamiento del sistema no es bueno ni malo. No hay datos en 2018 ni en 2019, puesto que el Centro de Investigaciones Sociológicas en estos años no preguntaba sobre posiciones intermedias.
+
+```{r}
+Proyecto %>%
+  select(año, izquierda, derecha) %>%
+  tidyr::pivot_longer(cols = c(izquierda, derecha), names_to = "ideologia", values_to = "porcentaje") %>%
+  mutate(año = as.factor(año), ideologia = as.factor(ideologia), porcentaje = as.numeric(porcentaje)) %>%
+  ggplot(aes(x = año, y = porcentaje, color = ideologia, group = ideologia)) +
+  geom_line(size = 2) +
+  geom_point(size = 3, aes(x = año, y = porcentaje, color = ideologia)) +
+  scale_y_continuous(limits = c(60, 80)) +
+  scale_color_manual(values = c("blue", "red")) +
+  theme_bw() +
+  labs(title = "El buen funcionamiento del sistema sanitario por ideología",
+       subtitle = "Los electores de derechas tuvieron una opinión más favorable hacia el funcionamiento del sistema sanitario en 2018 y los de izquierdas, sin embargo, en 2023.") +
+  labs(color = "Ideología")
+
+
+
+
+
+```
+
+En el año 2018 las personas autoubicadas en la derecha política fueron quienes mejor valoraban el funcionamiento del sistema sanitario. Sin embargo, desde el año 2019 cambió la tendencia. La derecha política cada vez valoraba peor el funcionamiento del sistema sanitario, incluso en unos niveles inferiores a la izquierda. En el año 2022, volvió a cambiar la tendencia, pero exclusivamente para la izquierda que aumentó su buena valoración hacía el funcionamiento del sistema sanitario. Estos cambios en la valoración del funcionamiento del sistema sanitario están relacionados con los cambios de gobierno. En el año 2018 cuando se llevó a cabo la encuesta, gobernaba la derecha, pero en el año 2019 pasó a gobernar la izquierda.
+
+En definitiva, a través de estos tres gráficos se puede observar que la ideología y la identificación partidista son relevantes e influyentes en la valoración de la ciudadanía hacía el funcionamiento del sistema sanitario. Actualmente, la izquierda y los partidos políticos ubicados en esta ideología son los que mejor valoran el funcionamiento de la sanidad, pero se aprecia que no siempre es así, sino que varía en función de los partidos que gobiernen el estado. En 2018, gobernaba el PP y la mejor valoración procedia de la derecha y de los electores del PP.
+
+\
+
+```{r}
+Proyecto <- Proyecto %>%
+  mutate(PP=c("75","76","74","65"),
+         PSOE=c("71","74","71","71"),
+         UP=c("63","69","68","69"),
+         CS=c("60","71","70","72"),
+         VOX=c("0","62","57","53"))
+
+
+
+length(SanidadTotal$P2.y)
+length(SanidadTotal$RECUVOTOG.y)
+
+# Filtrar el dataframe para seleccionar solo las filas con información en ambas variables
+SanidadTotal_filtrado <- subset(SanidadTotal, !is.na(P2.y) & !is.na(RECUVOTOG.y))
+
+# Crear la tabla de contingencia
+tabla_contingencia <- table(SanidadTotal_filtrado$P2.y, SanidadTotal_filtrado$RECUVOTOG.y)
+tabla_contingencia
+```
+
+```{r}
+Proyecto[, 2:11] <- lapply(Proyecto[, 2:11], as.numeric)
+
+# Convertir el DataFrame a formato largo y filtrar solo las filas deseadas
+Proyecto_largo <- Proyecto %>% 
+  gather(partido, porcentaje, -año) %>% 
+  filter(partido %in% c("PP", "PSOE", "UP", "CS", "VOX"))
+
+# Crear el gráfico de líneas
+ggplot(Proyecto_largo, aes(x = año, y = as.numeric(porcentaje), color = partido, group = partido)) +
+  geom_line(size = 2) +
+  geom_point(size = 3) +  # Agregar puntos
+  labs(x = "Año", y = "Buen funcionamiento sanidad", color = "Partido Político",
+       title = "El buen funcionamiento del sistema sanitario por ideología",
+       subtitle = "En 2018 los electores del PP fueron quienes más estuvieron satisfechos con el sistema sanitario y en 2023, los del PSOE y CS.") +
+  theme_bw() +
+  theme(plot.subtitle = element_text(size = 8)) +
+  scale_y_continuous(limits = c(50, 80)) +
+  scale_color_manual(values = c("#F4711F", "#1C5A99", "#FF0000","#835581","#0CAA00")) +
+  geom_vline(xintercept = c(2018, 2019, 2022), linetype = "dashed", 
+             color = "gray50", size = 0.7) +
+  annotate("text", x = 2018, y = 80, label = "Gobierno PP", size = 2) +
+  annotate("text", x = 2019, y = 80, label = "Gobierno PSOE", size = 2) +
+  annotate("text", x = 2022, y = 80, label = "Gobierno PSOE y UP", size = 2)
+```
+
+En el año 2018 los electores del Partido Popular fueron quienes mejor valoraban el funcionamiento del sistema sanitario. Mientras que los electores de los nuevos partidos (Unidas Podemos y Ciudadanos) lo valoraban bastante mal en comparación. Esto tiene que ver con que los nuevos partidos se encontraban en un momento de crítica hacía la gestión de los partidos tradicionales. VOX adquiere relevancia en las encuestas desde 2019 y sus electores nunca valoraron demasiado bien el funcionamiento del sistema sanitario. Desde entonces hasta el 2023, la tendencia fue decreciente. Es decir, a medida que pasaba el tiempo tenían una peor valoración. En cuanto al resto de partidos, si que se produce un gran cambio desde el año 2022. El electorado de Ciudadanos, PSOE y Unidas Podemos es el que mejor valora el funcionamiento del sistema sanitario, mientras que el electorado del Partido Popular ya no hace tan buena valoración. En el caso de Ciudadanos, hay que tener en cuenta que en 2022 el encuestado con recuerdo a este partido es muy inferior al del 2019 y que al ser la muestra menos amplia, la valoración no es tan representativa. Sin embargo, el aumento de la valoración en el electorado del PSOE y de Unidas Podemos puede estar relacionado con el cambio de gobierno como se comentó anteriormente con la ideología. En el año 2018 cuando se llevó a cabo la encuesta, gobernaba el Partido Popular, pero en el año 2022 gobernaba el PSOE y Unidas Podemos. De tal manera que se aprecia la relevancia del sesgo partidista y del efecto halo. Tal y como explicó Thorndike en 1920, la evaluación positiva hacía una marca o un partido político en este caso, hace que el individuo tenga una evaluación positiva hacía sus productos o políticas públicas (Thorndike, 1920).
+
+Si un elector simpatiza con un partido que forma parte del gobierno, va a tener buenas valoraciones sobre los temas en los cuales podría tener responsabilidades.
+
+\
+
+¿Aumenta la insatisfacción ciudadana hacía la sanidad cuando empeora la situación sanitaria?
+
+Para responder a esta pregunta se han realizado dos gráficos. En ambos gráficos se cruza la valoración positiva hacía el funcionamiento sanitario, pero en el primero con el volumen de listas de espera y en el segundo con el gasto público per cápita en sanidad.
+
+```{r}
+# Crear una nueva columna con los valores numéricos para cada año
+Proyecto$num_año <- as.numeric(factor(Proyecto$año))
+
+# Graficar los datos con los valores numéricos para el eje x
+ggplot(Proyecto, aes(x = num_año)) +
+  geom_line(aes(y = buenasanidad), color = "#2A5783", size = 2) +
+  geom_point(aes(y = buenasanidad), color = "#2A5783", size = 3) +  # Agregar puntos en la línea
+  geom_bar(aes(y = Listadespera / 1200, fill = "Listadespera"), stat = "identity", alpha = 0.7, width = 0.8, color = "black", fill = "#00FF00") +  # Cambiar el color de las barras a verde
+  scale_x_continuous(breaks = 1:length(unique(Proyecto$num_año)), labels = unique(Proyecto$año)) +
+  scale_y_continuous(
+    name = "Buena valoración sanidad",
+    limits = c(0, 100),
+    sec.axis = sec_axis(~.*1200, name = "Listas de espera")
+  ) +
+  labs(title = "Listas de espera y valoración de la sanidad en España", x = "Año", subtitle = "Los españoles valoran peor la sanidad cuando aumenta el número de listas de espera") +
+  theme_bw() +
+  theme(
+    legend.position = "bottom",
+    axis.title.x = element_text(size = 10),
+    axis.title.y = element_text(size = 10),
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    panel.background = element_blank(),
+    plot.subtitle = element_text(size = 8)
+  ) +
+  guides(fill = FALSE)
+
+```
+
+\
+Las datos registrados en cuanto a listas de espera en el año 2018 fueron de 51.945 de media considerando primer y segundo sementre y desde entonces la cifra fue aumentando progresivamente hasta llegar a 72.626 en la actualidad. Al mismo tiempo que aumentaba el número de personas en listas de espera, también disminuía la buena valoración hacía el funcionamiento del sistema sanitario.
+
+Es necesario señalar que para medir el estado del sistema sanitario se ha utilizado el número medio de personas en listas de espera y que en cuanto a esta variable, como todavía no hay datos del 2023 sobre el número de personas de media en listas de espera, se ha recurrido a utilizar la cifra del segundo semestre de 2022.
+
+```{r}
+# Crear una nueva columna con los valores numéricos para cada año
+Proyecto$num_año <- as.numeric(factor(Proyecto$año))
+
+# Graficar los datos con los valores numéricos para el eje x
+ggplot(Proyecto, aes(x = num_año)) +
+  geom_line(aes(y = buenasanidad), color = "#2A5783", size = 2) +
+  geom_point(aes(y = buenasanidad), color = "#2A5783", size = 3) +
+  geom_bar(aes(y = Gastosanidad / 30, fill = "Gastosanidad"), stat = "identity", alpha = 0.7, width = 0.8, color = "black", fill = "#FCD116") +  # Cambiar el color de las barras a amarillo
+  scale_x_continuous(breaks = 1:length(unique(Proyecto$num_año)), labels = unique(Proyecto$año)) +
+  scale_y_continuous(
+    name = "Buena valoración sanidad",
+    limits = c(0, 100),
+    sec.axis = sec_axis(~.*30, name = "Gasto en Sanidad")
+  ) +
+  labs(title = "Gasto público y valoración de la sanidad en España", x = "Año", subtitle = "Los españoles valoran peor la sanidad cuando aumenta el gasto público") +
+  theme_bw() +
+  theme(
+    legend.position = "bottom",
+    axis.title.x = element_text(size = 10),
+    axis.title.y = element_text(size = 10),
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    panel.background = element_blank(),
+    plot.subtitle = element_text(size = 8)
+  ) +
+  guides(fill = FALSE)
+
+
+
+
+
+
+
+```
+
+Los datos registrados en cuanto a gasto público en sanidad en el año 2018 fue de 1625€ per capita y desde entonces, al igual que ocurría con las listas de espera, fue aumentando hasta llegar a 1907€ en la actualidad. Cuando aumenta el gasto público per capita en sanidad, disminuye la buena valoración de la ciudadanía hacía el sistema sanitario. Esto es así, puest que cuando peor funciona el sistema, más inversión suele realizarse por parte de las administraciones públicas.
+
+Es probable también que la crisis sanitaria del COVID-19 y que el cambio de gobierno hacía uno progresista, haya contribuido al aumento de inversión en sanidad.
